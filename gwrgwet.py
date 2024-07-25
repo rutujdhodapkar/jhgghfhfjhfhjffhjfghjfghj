@@ -1,40 +1,18 @@
+# logistic
+
+import pickle
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, classification_report
-from sklearn.feature_extraction.text import TfidfVectorizer
-import streamlit as st
-import pandas as pd
-from sklearn.model_selection import train_test_split
-import joblib
+from flask import Flask, request, jsonify
 
-# Load the dataset
-data_path = r'C:\Users\rutuj\OneDrive\Documents\OneDrive\Desktop\Emotion_final.csv'
-data = pd.read_csv(data_path)
-
-# Assuming the dataset has 'text' and 'emotion' columns
-X = data['Text']
-y = data['Emotion']
-
-# Split the dataset into training and testing sets
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-# Vectorize the text data
-vectorizer = TfidfVectorizer()
-X_train_vec = vectorizer.fit_transform(X_train)
-X_test_vec = vectorizer.transform(X_test)
+# Initialize the Flask app
+app = Flask(__name__)
 
 # Initialize the Logistic Regression model
 logistic_regression_model = LogisticRegression(max_iter=1000)
 
 # Train the model
 logistic_regression_model.fit(X_train_vec, y_train)
-
-# Save the model and vectorizer
-joblib.dump(logistic_regression_model, 'logistic_regression_model.pkl')
-joblib.dump(vectorizer, 'vectorizer.pkl')
-
-# Load the model and vectorizer
-logistic_regression_model = joblib.load('logistic_regression_model.pkl')
-vectorizer = joblib.load('vectorizer.pkl')
 
 # Make predictions
 y_pred = logistic_regression_model.predict(X_test_vec)
@@ -45,36 +23,38 @@ print(f'Logistic Regression Accuracy: {accuracy:.4f}')
 print('Classification Report:')
 print(classification_report(y_test, y_pred))
 
+# Save the model to a file
+with open('logistic_regression_model.pkl', 'wb') as model_file:
+    pickle.dump(logistic_regression_model, model_file)
+
+# Load the model from the file
+with open('logistic_regression_model.pkl', 'rb') as model_file:
+    logistic_regression_model = pickle.load(model_file)
+
 # Function to predict emotion from text using Logistic Regression
 def predict_emotion_logistic(text):
     text_vec = vectorizer.transform([text])
     prediction = logistic_regression_model.predict(text_vec)
     return prediction[0]
 
-# Example usage
-example_text = "I don't like this"
-predicted_emotion = predict_emotion_logistic(example_text)
-print(f'Predicted Emotion using Logistic Regression: {predicted_emotion}')
+# Define a route for the default URL, which loads the form
+@app.route('/')
+def form():
+    return '''
+        <form action="/predict" method="post">
+            <label for="text">Enter text:</label>
+            <input type="text" id="text" name="text">
+            <input type="submit" value="Predict Emotion">
+        </form>
+    '''
 
-# Streamlit app
-st.title('Emotion Prediction using Logistic Regression')
+# Define a route for the action of the form, for example '/predict'
+@app.route('/predict', methods=['POST'])
+def predict():
+    text = request.form['text']
+    predicted_emotion = predict_emotion_logistic(text)
+    return jsonify({'predicted_emotion': predicted_emotion})
 
-# Display the dataset
-st.subheader('Dataset')
-st.write(data.head())
-
-# Input text for emotion prediction
-st.subheader('Predict Emotion from Text')
-input_text = st.text_input('Enter text:')
-
-if st.button('Predict'):
-    if input_text:
-        predicted_emotion = predict_emotion_logistic(input_text)
-        st.write(f'Predicted Emotion: {predicted_emotion}')
-    else:
-        st.write('Please enter some text to predict the emotion.')
-
-
-
-        #output
-        # streamlit run C:\Users\rutuj\OneDrive\Documents\OneDrive\Desktop\gwrgwet.py 
+# Run the app
+if __name__ == '__main__':
+    app.run(debug=True)
